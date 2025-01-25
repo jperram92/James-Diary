@@ -51,13 +51,13 @@ class DiaryEntry:
     def load(url):
         """Loads a diary entry from a JSONBin URL."""
         try:
-            #  The retrieval endpoint needs the ID at the end, so let's not try and split here.
+            bin_id = url.split("/")[-1]
             headers = {
-                "X-Master-Key": f"{API_KEY}",  # Using the Master-Key for loading
-                'Content-Type': 'application/json' # setting content type for GET
+                "X-Master-Key": f"{API_KEY}",
+                'Content-Type': 'application/json'
             }
 
-            response = requests.get(f"{url}", headers=headers)
+            response = requests.get(f"{JSONBIN_URL}/{bin_id}", headers=headers)
             response.raise_for_status()
             data = response.json()['record']
             return DiaryEntry.from_dict(data)
