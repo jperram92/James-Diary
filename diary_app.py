@@ -33,14 +33,16 @@ class DiaryEntry:
     def save(self):
         """Saves the diary entry to JSONBin and returns the URL."""
         json_data = json.dumps(self.to_dict(), indent=4)
-
         try:
             headers = {
                 'Content-Type': 'application/json',
-                 "X-Master-Key": f"{API_KEY}" # Using the Master-Key for saving
+                 "X-Master-Key": f"{API_KEY}"
             }
+
+            #create a new bin
             response = requests.post(JSONBIN_URL, headers=headers, data=json_data)
-            response.raise_for_status() # Raise exception if the response status is 4XX or 5XX
+
+            response.raise_for_status()
             bin_id = response.json()['metadata']['id']
             return f"https://jsonbin.io/{bin_id}"
         except requests.exceptions.RequestException as e:
@@ -49,7 +51,7 @@ class DiaryEntry:
 
     @staticmethod
     def load(url):
-        """Loads a diary entry from a JSONBin URL."""
+        """Loads diary entries from a JSONBin URL."""
         try:
             bin_id = url.split("/")[-1]
             headers = {
@@ -59,8 +61,10 @@ class DiaryEntry:
 
             response = requests.get(f"{JSONBIN_URL}/{bin_id}", headers=headers)
             response.raise_for_status()
+
             data = response.json()['record']
-            return DiaryEntry.from_dict(data)
+            return [DiaryEntry.from_dict(data)]
+
         except requests.exceptions.RequestException as e:
             print(f"Error loading from JSONBin: {e}")
             return None
@@ -68,7 +72,6 @@ class DiaryEntry:
         except KeyError as e:
           print(f"Error loading from JSONBin: Invalid data returned.")
           return None
-
 
 def load_metadata():
     """Loads diary metadata from the local JSON file."""
@@ -121,12 +124,14 @@ def read_entry():
 
     url = metadata.get(selected_title)
     if url:
-        entry = DiaryEntry.load(url)
-        if entry:
-            print("\n--- Diary Entry ---")
-            print(f"Title: {entry.title}")
-            print(f"Date: {entry.date}")
-            print(f"Description: {entry.description}")
+        entries = DiaryEntry.load(url) # Load a list of diary entries.
+        if entries:
+            print("\n--- Diary Entries ---")
+            for entry in entries: # Loop through all entries
+                print(f"Title: {entry.title}")
+                print(f"Date: {entry.date}")
+                print(f"Description: {entry.description}")
+                print("---") # Seperate by a line
         else:
             print("Error loading entry from URL")
     else:
