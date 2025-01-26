@@ -1,0 +1,115 @@
+Diary Application: Comprehensive Explanation
+
+This Python application provides a graphical user interface (GUI) for creating, reading, editing, searching, and deleting diary entries. It uses `tkinter` for the GUI, `requests` for interacting with the JSONBin.io API, and other standard Python libraries for core functionalities.
+
+**I. Core Functionality**
+
+The application allows users to:
+
+1.  **Create New Entries:**
+    *   Users can create new diary entries, specifying a title and a description.
+    *   Each entry is saved as a unique JSON object on JSONBin.io.
+    *   A link to the new entry is stored in a local metadata file, so it can be retrieved later.
+
+2.  **Read Entries:**
+    *   The application lists all available diary entry titles.
+    *   Users can select an entry to view from the list.
+    *   The selected entry's title, date, and description are displayed in a book-like format on the main window.
+
+3.  **Edit Entries:**
+    *   Users can choose an entry to edit by selecting its title from a list.
+    *   They are presented with a window to modify the description and/or the title.
+    *  The changed entry is then re-saved to JSONBin.io using the same URL if they are not editing the title, otherwise it saves it as a new entry and overwrites the old one.
+
+4.  **Search Entries:**
+    *   Users can search entries based on a search term, it will search both titles and descriptions.
+    *  The application will then list all of the matching entries on the main display, by calling the update_entries method.
+
+5.  **Delete Entries:**
+    *   Users can select an entry to delete from a list.
+    *   The entry's JSON data from JSONBin.io will be deleted using the PUT method to send an empty JSON Object to that bin.
+     *   The entry is then removed from the local metadata, and the page is refreshed to show the new state.
+
+6.  **Persistence:**
+    *   Diary entries are stored as individual JSON objects on JSONBin.io, providing remote storage of your entries.
+    *   The metadata (associations between titles and JSONBin URLs) is stored locally in a JSON file (diary_metadata.json) ensuring that it persists between runs of the application.
+
+**II. Key Components and Their Functions**
+
+1.  **`DiaryEntry` Class:**
+    *   `__init__(self, title, description, date_str=None)`: Constructor to create a diary entry object. It accepts a title, description, and an optional date string, and sets the current date and time if a date string is not provided.
+    *   `to_dict(self)`: Converts the diary entry's attributes to a Python dictionary for JSON serialization.
+    *   `from_dict(cls, data)`: Creates a `DiaryEntry` object from a dictionary (used when loading from JSON).
+    *   `save(self)`: Saves the diary entry to JSONBin.io and returns the URL of the new bin. It also includes headers with content type, and the correct master key, and then sends this to JSONBin.
+    *   `load(url)`: Loads a diary entry from a JSONBin.io URL, it extracts the bin id from the URL then returns it as a DiaryEntry list.
+
+2.  **`load_metadata()` Function:**
+    *   Loads the diary metadata from the `diary_metadata.json` file. If the file doesn't exist, it returns an empty dictionary.
+
+3.  **`save_metadata(metadata)` Function:**
+    *   Saves the current metadata to the local `diary_metadata.json` file.
+
+4.  **`create_new_entry_gui(entries_frame)` Function:**
+    *   Creates a new window for creating diary entries.
+    *   It includes an Entry field for the title, and a scrollable text field for the description, and a `save` button to save and close this window.
+
+5.  **`update_entries(entries_frame, search_matches=None)` Function:**
+     *   This is a core method that loads data from all JSON bins and outputs it to the screen.
+     *   It clears all old entries from the screen, before getting all the new metadata, then loading from JSONBin, and outputting it on the screen.
+     *   It will only output entries matching the search matches if a search query is being made.
+
+6.  **`edit_entry_gui(entries_frame)` Function:**
+    *   Creates a window for editing entries.
+    *   It will load the selected entry, and allow the user to modify both the title and the description.
+    *  It updates the url if a title has not been updated, otherwise, it creates a new bin.
+
+7.  **`search_entry_gui(entries_frame)` Function:**
+    *   Creates a window for entering search terms.
+    *   It will then use the `update_entries` function to update the display to only contain those that match the query.
+
+8. **`delete_entry_gui(entries_frame)` Function:**
+    *  Creates a window for deleting the selected entry.
+    *   It will send a PUT request to the JSON bin, with an empty payload, effectively "deleting" the data in the bin.
+
+9. **`main` function:**
+    *   Initializes the main `tkinter` window and layout.
+    *   It provides the buttons for interacting with the main application, calling each of the methods when they are clicked.
+
+**III. How They Work Together**
+
+1.  **Application Launch:** The `main` method initializes the `tkinter` window and displays all the existing entries, calling the `update_entries` method to get the entries.
+
+2.  **User Actions:** Users can interact with the application by:
+    *   **Creating Entries**: The create button calls the `create_new_entry_gui` method, which shows the create entries window, then on save, it will create a new entry on JSONBin, and then update the main display.
+    *   **Reading Entries**: The entries are loaded as soon as the app starts, and clicking on an entry is not needed.
+    *   **Editing Entries**: The edit button calls the `edit_entry_gui` which presents a window to edit the entry, then it re-saves it on update.
+    *   **Searching**: The search button calls the `search_entry_gui` which then filters the list on the screen.
+    *  **Deleting**: The delete button will call the `delete_entry_gui` method which will then present a window for deleting an entry, which will remove it from JSONBin.
+
+3. **Data Flow:** The code does the following:
+    * When adding data it creates a new bin on JSONBin, and then saves the link to this in the metadata, and the new bin contains the JSON data for that entry.
+   * When reading data it loads the metadata, then for each entry it loads the JSON from JSONBin and outputs it on screen.
+   * When searching, the metadata is loaded, then entries are loaded, and matching results are outputted to the screen.
+   * When editing an entry, it will load data from JSONBin, make the relevant changes, then push those to a new bin, or the old one, before updating the metadata.
+  * When deleting an entry it clears the entry from JSONBin by sending an empty string, then it deletes the local metadata.
+
+4.  **JSONBin Interaction:** The application uses `requests` to make HTTP POST requests (for saving) and GET requests (for loading) to JSONBin.io. The requests must include headers, containing a content type of `application/json`, and your unique master key is required for both GET and POST requests.
+5.  **Metadata:** The `metadata` is what allows the application to load specific JSONBins from JSONBin.io, and each entry is associated with a unique link to the bin that contains that diary entry. The metadata is also used when searching and deleting, so that the application knows where the entries are stored.
+
+**IV. How to Use**
+
+1.  Ensure you have a valid Master Key from JSONBin.io, and that this is placed inside the `API_KEY` variable on line 10.
+2.  Save the code as a Python file (`diary_app.py`).
+3.  Run the script.
+
+This will launch the main window. Use the buttons to interact with the application, and use it to create, edit, search and delete entries from your diary.
+
+**V. Important Notes**
+
+*   **API Key:** The `API_KEY` variable must contain your own *unique* Master API Key from JSONBin.io to use the application correctly.
+*   **Free Tier Limitations**: The JSONBin.io free tier has limitations on the number of requests and storage. Ensure that you are aware of the free tier limits, which can be found on their website.
+*   **Error Handling:** The code contains basic error handling (e.g., `try...except` blocks) for network requests and JSON decoding, however, it may need to be improved for more robust handling of different errors.
+
+**VI. Next Steps**
+
+This text file provides a comprehensive understanding of what the code does and how it works. If you wish to expand on any parts of it, then let me know and I will gladly explain further.

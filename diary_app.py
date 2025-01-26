@@ -117,29 +117,29 @@ def create_new_entry_gui(entries_frame):
     new_entry_window.grid_columnconfigure(1, weight=1)
     new_entry_window.grid_rowconfigure(1, weight=1)
 
-def update_entries(entries_frame):
+def update_entries(entries_frame, search_matches=None):
      for widget in entries_frame.winfo_children():
             widget.destroy()
      metadata = load_metadata()
      if not metadata:
          tk.Label(entries_frame, text="No Entries Yet!").pack()
          return
-     
+
      for i, (title, url) in enumerate(metadata.items()):
-      try:
-        entries = DiaryEntry.load(url)
-        if entries:
-            entry = entries[0]
-            text = f"{entry.title}\n{entry.date}\n{entry.description}"
-            
-            
-            text_widget = scrolledtext.ScrolledText(entries_frame, wrap=tk.WORD, height=10, width=40, borderwidth=2, relief="groove")
-            text_widget.insert(tk.END, text)
-            text_widget.config(state=tk.DISABLED)
-            text_widget.grid(row=i//2, column=i%2, padx=5, pady=5)
-      except Exception as e:
-         print (f"Error loading entries:{e}")
-         
+        if search_matches is None or title in search_matches:
+          try:
+            entries = DiaryEntry.load(url)
+            if entries:
+              entry = entries[0]
+              text = f"{entry.title}\n{entry.date}\n{entry.description}"
+
+              text_widget = scrolledtext.ScrolledText(entries_frame, wrap=tk.WORD, height=10, width=40, borderwidth=2, relief="groove")
+              text_widget.insert(tk.END, text)
+              text_widget.config(state=tk.DISABLED)
+              text_widget.grid(row=i//2, column=i%2, padx=5, pady=5)
+          except Exception as e:
+             print (f"Error loading entries:{e}")
+
 def edit_entry_gui(entries_frame):
     def edit_selected_entry():
         selected_title = titles[entry_list.curselection()[0]]
@@ -164,21 +164,23 @@ def edit_entry_gui(entries_frame):
                     description_text.grid(row=1, column=1, sticky=tk.NSEW, padx=5, pady=5)
 
                     def save_changes():
+                        nonlocal url #allows us to modify the url variable in the outer function.
                         new_description = description_text.get("1.0", tk.END).strip()
                         if new_description.strip():
                             entry.description = new_description
                         
                         new_title = title_entry.get()
-                        if new_title.strip():
-                           if new_title in metadata and new_title != selected_title:
+                        
+                        if new_title.strip() and new_title != selected_title : # Only attempt to delete if the title has changed.
+                           if new_title in metadata:
                                 print("Warning: An entry with this title already exists, it will overwrite the old value.")
                            del metadata[selected_title]
-                           metadata[new_title] = url
+                           metadata[new_title] = url # This now must be a new url
                            entry.title = new_title
                         
-                        entry.date = str(datetime.now())
                         
-                        url = entry.save()
+                        entry.date = str(datetime.now())
+                        url = entry.save() # Re-save, to ensure metadata changes are saved.
                         if url:
                             print(f"Entry updated and saved to {url}")
                             save_metadata(metadata)
@@ -211,8 +213,6 @@ def edit_entry_gui(entries_frame):
     
     tk.Button(edit_window, text="Edit Entry", command=edit_selected_entry).pack()
 
-
-
 def search_entry_gui(entries_frame):
     def search():
         search_term = search_entry.get()
@@ -220,23 +220,68 @@ def search_entry_gui(entries_frame):
             print("Search term cannot be blank")
             return
         matches = []
-        for title, url in metadata.items():
+        for title, url in metadata_inner.items():
             if re.search(search_term, title, re.IGNORECASE):
                 matches.append(title)
                 continue
             entries = DiaryEntry.load(url)
             if entries and any(re.search(search_term, entry.description, re.IGNORECASE) for entry in entries):
                 matches.append(title)
-        
+
         update_entries(entries_frame, search_matches=matches)
         search_window.destroy()
-        
+    
+    metadata_inner = load_metadata() # load the metadata from the correct function
     search_window = tk.Toplevel()
     search_window.title("Search Entries")
     tk.Label(search_window, text="Enter the search term:").pack()
     search_entry = tk.Entry(search_window)
     search_entry.pack()
     tk.Button(search_window, text="Search", command=search).pack()
+    
+def delete_entry_gui(entries_frame):
+    def delete_selected_entry():
+        if entry_list.curselection():
+          selected_title = titles[entry_list.curselection()[0]]
+
+          if selected_title in metadata:
+             url = metadata[selected_title]
+             try:
+                headers = {
+                    'Content-Type': 'application/json',
+                     "X-Master-Key": f"{API_KEY}"
+                   }
+                requests.put(url, headers=headers, data="{}") # Delete by sending an empty data object
+                
+                del metadata[selected_title]
+                save_metadata(metadata)
+                update_entries(entries_frame)
+                delete_window.destroy()
+             except requests.exceptions.RequestException as e:
+                print(f"Error deleting from JSONBin: {e}")
+          else:
+              print("Error: Entry not found in metadata.")
+        else:
+              print("Error: Please select an entry first")
+
+    metadata = load_metadata()
+    if not metadata:
+        print("No entries found")
+        return
+
+    titles = list(metadata.keys())
+    
+    delete_window = tk.Toplevel()
+    delete_window.title("Delete Entry")
+    
+    tk.Label(delete_window, text="Select an entry to delete:").pack()
+    entry_list = tk.Listbox(delete_window)
+    entry_list.pack()
+    for i, title in enumerate(titles):
+        entry_list.insert(tk.END, title)
+    
+    tk.Button(delete_window, text="Delete Entry", command=delete_selected_entry).pack()
+    
 def main():
     root = tk.Tk()
     root.title("My Diary")
@@ -255,6 +300,9 @@ def main():
     
     search_button = tk.Button(button_frame, text="Search Entry", command=lambda: search_entry_gui(entries_frame))
     search_button.pack(side=tk.LEFT, padx=5)
+    
+    delete_button = tk.Button(button_frame, text="Delete Entry", command=lambda: delete_entry_gui(entries_frame))
+    delete_button.pack(side=tk.LEFT, padx=5)
     
     update_entries(entries_frame)
 
